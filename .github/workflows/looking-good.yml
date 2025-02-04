@@ -1,0 +1,22 @@
+name: Update GitHub Stats
+
+on:
+  schedule:
+    - cron: "0 * * * *" # Runs every hour
+  workflow_dispatch: # Allows manual execution
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Update GitHub Stats
+        run: |
+          curl -o github_stats.svg "https://github-readme-stats.vercel.app/api?username=arikaki&theme=nightowl&hide_border=false&include_all_commits=true&count_private=true&token=${{ secrets.GH_STAT_TOKEN }}"
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add github_stats.svg
+          git commit -m "Updated GitHub Stats"
+          git push
