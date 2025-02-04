@@ -1,5 +1,9 @@
 # 💫 About Me:
-🔭 I’m currently working on personalize DevOps projects<br>🤝 I’m looking for help with the projects<br>🌱 I’m currently learning on DevOps tools and Cloud Technology 
+- **💻 Full-Stack & DevOps Engineer** | Skilled in Python, Java, React, Spring Boot, Kubernetes, and AWS.  
+- **🚀 Cloud & Automation Enthusiast** | Certified in AWS, Kubernetes, and Terraform, optimizing CI/CD pipelines.  
+- **🛠️ Passionate Problem Solver** | Building scalable, high-performance applications and open to collaborations.  
+
+Open for collaboration on projects.  
 
 
 ## 🌐 Socials:
