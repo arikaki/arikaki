@@ -40,6 +40,7 @@
 #           publish_branch: output
 #           # Optionally, you can set a custom commit message
 #           commit_message: "Update snake animation [skip ci]"
+#    Hope this works
 
 name: GitHub Snake Game
 
