@@ -1,0 +1,105 @@
+name: GitHub Snake Game
+
+# Quoted so YAML 1.1 parsers do not read `on` as the boolean True.
+'on':
+  schedule:
+    - cron: "0 */12 * * *"
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+# Never run two deploys to the `output` branch at once.
+concurrency:
+  group: snake
+  cancel-in-progress: false
+
+jobs:
+  check-contributions:
+    runs-on: ubuntu-latest
+    outputs:
+      has_contributions: ${{ steps.check.outputs.has_contributions }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Check Contributions Activity
+        id: check
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const username = context.repo.owner;
+            const currentYear = new Date().getFullYear();
+            const from = `${currentYear}-01-01T00:00:00Z`;
+            const to = `${currentYear}-12-31T23:59:59Z`;
+
+            const query = `
+              query ($login: String!, $from: DateTime!, $to: DateTime!) {
+                user(login: $login) {
+                  contributionsCollection(from: $from, to: $to) {
+                    contributionCalendar {
+                      totalContributions
+                    }
+                  }
+                }
+              }
+            `;
+
+            // GitHub's API occasionally answers with an HTML error page (5xx).
+            // Retry with exponential backoff before giving up.
+            const maxAttempts = 4;
+            let result;
+            for (let attempt = 1; ; attempt++) {
+              try {
+                result = await github.graphql(query, { login: username, from, to });
+                break;
+              } catch (error) {
+                if (attempt === maxAttempts) throw error;
+                const delayMs = 2000 * 2 ** (attempt - 1);
+                core.warning(
+                  `GraphQL attempt ${attempt}/${maxAttempts} failed ` +
+                  `(status ${error.status ?? 'unknown'}); retrying in ${delayMs / 1000}s`
+                );
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+              }
+            }
+
+            const total = result.user.contributionsCollection.contributionCalendar.totalContributions;
+            console.log(`Total Contributions in ${currentYear}: ${total}`);
+
+            // Must be core.setOutput: returning a value would only set `result`,
+            // leaving `has_contributions` empty and the generate job skipped.
+            core.setOutput('has_contributions', total > 0 ? 'true' : 'false');
+
+  generate:
+    needs: check-contributions
+    if: needs.check-contributions.outputs.has_contributions == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # push the generated files to the `output` branch
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Generate GitHub Contributions Snake Animations
+        uses: Platane/snk@v3
+        with:
+          github_user_name: ${{ github.repository_owner }}
+          outputs: |
+            dist/github-snake.svg
+            dist/github-snake-dark.svg?palette=github-dark
+            dist/ocean.gif?color_snake=orange&color_dots=#bfd6f6,#8dbdff,#64a1f4,#4b91f1,#3c7dd9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy to Output Branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: output
+          commit_message: "Update snake animation [skip ci]"
