@@ -68,6 +68,43 @@ class WorkflowYamlTest(unittest.TestCase):
             workflow['jobs']['generate']['permissions'], {'contents': 'write'}
         )
 
+    def test_two_year_snake_runs_before_one_year_and_cannot_break_it(self):
+        steps = load_workflow()['jobs']['generate']['steps']
+        names = [step.get('name', '') for step in steps]
+        two_year = next(s for s in steps if 'two-year-snake' in s.get('run', ''))
+
+        # A failure in the extra 2-year step must not stop the 1-year deploy.
+        self.assertTrue(two_year.get('continue-on-error'))
+        # Runs first so `dist/` is created by the runner user, not the
+        # root-owned docker action that generates the 1-year snake.
+        self.assertLess(
+            steps.index(two_year),
+            names.index('Generate GitHub Contributions Snake Animations'),
+        )
+        self.assertIn('Deploy to Output Branch', names)
+        self.assertEqual(two_year['env']['GITHUB_TOKEN'], '${{ secrets.GITHUB_TOKEN }}')
+
+    def test_two_year_snake_uses_pinned_snk_checkout_and_bun(self):
+        steps = load_workflow()['jobs']['generate']['steps']
+        snk = next(
+            s for s in steps
+            if s.get('with', {}).get('repository') == 'Platane/snk'
+        )
+        bun = next(s for s in steps if s.get('uses', '').startswith('oven-sh/setup-bun@'))
+
+        self.assertRegex(snk['with']['ref'], r'^v\d+\.\d+\.\d+$')
+        self.assertRegex(bun['with']['bun-version'], r'^\d+\.\d+\.\d+$')
+
+    def test_two_year_script_fetches_two_windows_of_at_most_a_year(self):
+        script = Path('scripts/two-year-snake.ts').read_text()
+
+        # GitHub rejects contributionsCollection ranges longer than one year.
+        self.assertIn('contributionsCollection(from: $from, to: $to)', script)
+        self.assertIn('WINDOW_DAYS = 365', script)
+        self.assertIn('windows', script)
+        for output in ('github-snake-2y.svg', 'github-snake-2y-dark.svg'):
+            self.assertIn(output, script)
+
     def test_runs_do_not_overlap(self):
         workflow = load_workflow()
 
